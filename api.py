@@ -30,6 +30,7 @@ def cleanup_vram():
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
     elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         torch.mps.empty_cache()
 
@@ -202,40 +203,51 @@ async def generate_speech(req: GenerateRequest, background_tasks: BackgroundTask
 
     async with generation_lock:
         try:
-            with torch.inference_mode():
-                if ref_audio_path and ref_text_content:
-                    # Voice Cloning Mode
-                    audio_out = model.generate(
-                        text=req.text,
-                        language=lang_identifier,
-                        ref_audio=ref_audio_path,
-                        ref_text=ref_text_content,
-                        num_step=req.num_step,
-                        guidance_scale=req.guidance_scale
-                    )
-                else:
-                    # Auto Voice Mode
-                    audio_out = model.generate(
-                        text=req.text,
-                        language=lang_identifier,
-                        num_step=req.num_step,
-                        guidance_scale=req.guidance_scale
-                    )
-                
-                # Move to CPU immediately to free VRAM
-                out_tensor = audio_out[0].cpu()
-                del audio_out
+            # Log VRAM before generation
+            if torch.cuda.is_available():
+                allocated_before = torch.cuda.memory_allocated() / 1024**2
+                reserved_before = torch.cuda.memory_reserved() / 1024**2
+                print(f"[VRAM] Before generate: {allocated_before:.0f}MB allocated, {reserved_before:.0f}MB reserved")
+
+            # Run generation (model.generate already uses @torch.inference_mode)
+            if ref_audio_path and ref_text_content:
+                # Voice Cloning Mode
+                audio_out = model.generate(
+                    text=req.text,
+                    language=lang_identifier,
+                    ref_audio=ref_audio_path,
+                    ref_text=ref_text_content,
+                    num_step=req.num_step,
+                    guidance_scale=req.guidance_scale
+                )
+            else:
+                # Auto Voice Mode
+                audio_out = model.generate(
+                    text=req.text,
+                    language=lang_identifier,
+                    num_step=req.num_step,
+                    guidance_scale=req.guidance_scale
+                )
             
-            # Save temporally so we can respond
+            # Move output to CPU immediately and aggressively free GPU tensors
+            out_tensor = audio_out[0].detach().cpu().clone()
+            
+            # Explicitly delete every tensor in the output list
+            for i in range(len(audio_out)):
+                if isinstance(audio_out[i], torch.Tensor):
+                    audio_out[i] = None
+            del audio_out
+            
+            # Save to file
             out_filename = f"{uuid.uuid4()}.wav"
             out_filepath = os.path.join(OUTPUTS_DIR, out_filename)
             
-            # OmniVoice model sampling rate is generally 24000
             sr = 24000
             if hasattr(model, "sampling_rate") and model.sampling_rate is not None:
                  sr = model.sampling_rate
                  
             torchaudio.save(out_filepath, out_tensor, sr)
+            del out_tensor
             
             background_tasks.add_task(remove_file, out_filepath)
             return FileResponse(out_filepath, media_type="audio/wav")
@@ -245,4 +257,11 @@ async def generate_speech(req: GenerateRequest, background_tasks: BackgroundTask
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=str(e))
         finally:
-            cleanup_vram()
+            # Aggressive VRAM cleanup
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+                allocated_after = torch.cuda.memory_allocated() / 1024**2
+                reserved_after = torch.cuda.memory_reserved() / 1024**2
+                print(f"[VRAM] After cleanup: {allocated_after:.0f}MB allocated, {reserved_after:.0f}MB reserved")
