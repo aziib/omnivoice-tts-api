@@ -73,8 +73,11 @@ Generates audio from text using OmniVoice. You can select an explicit language a
 
 ### JSON Body Parameters:
 - `text` (string) **[Required]**: The text you want to synthesize into speech.
-- `voice_name` (string) **[Optional]**: The exact name of the downloaded voice from the library (e.g. `my_voice`). Set to `Auto` or `null` to use generalized Voice Design.
-- `language` (string) **[Optional]**: The full language name from the OmniVoice 646 language dataset (e.g. `English`, `Indonesian`). Set to `Auto` or `null` for language agnostic modeling.
+- `voice_name` (string) **[Optional]**: The name of the saved voice in the library. Set to `Auto` to use the model's default voice.
+- `language` (string) **[Optional]**: The language for synthesis (e.g., `English`, `Indonesian`). Set to `Auto` for detection.
+- `num_step` (integer) **[Optional]**: Number of inference steps (default: `32`). Higher values generally improve quality but take longer.
+- `guidance_scale` (float) **[Optional]**: Classifier-free guidance scale (default: `2.0`). Controls how strongly the model follows the prompt.
+- `seed` (integer) **[Optional]**: Random seed for reproducible generation. If not provided, a random seed is used (or `42` for voice cloning).
 
 **Example using cURL:**
 ```bash
