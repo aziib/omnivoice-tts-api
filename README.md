@@ -62,6 +62,20 @@ The frontend is built with React and Vite.
    ```
    The frontend will typically be available at `http://localhost:5173`.
 
+### 3. Voice Library Management
+
+You can easily add new voices for cloning through the web interface:
+
+1.  **Access the Frontend**: Open your browser and navigate to the frontend URL (default: `http://localhost:5173`).
+2.  **Open Voice Library**: Click on the **Voice Library** tab/button.
+3.  **Provide Details**:
+    *   **Voice Name**: Give your voice a descriptive name.
+    *   **Reference Audio**: Select the `.wav` or `.mp3` file you want to clone.
+    *   **Reference Transcript (Optional)**: Type the exact words spoken in the audio. Leave this empty to let the system **automatically transcribe** it for you.
+4.  **Save**: Click **Save voice to library**.
+
+**To delete a voice**: Simply go to the `voices/` folder in the root directory and delete the folder named after the voice you want to remove.
+
 ---
 
 ## API Documentation
