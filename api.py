@@ -4,6 +4,7 @@ from typing import Optional, List
 from contextlib import asynccontextmanager
 import gc
 import json
+import asyncio
 
 import torch
 import torchaudio
@@ -20,6 +21,17 @@ VOICES_DIR = "voices"
 OUTPUTS_DIR = "outputs"
 os.makedirs(VOICES_DIR, exist_ok=True)
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
+
+# Lock to prevent concurrent VRAM-heavy generations
+generation_lock = asyncio.Lock()
+
+def cleanup_vram():
+    """Explicitly clear VRAM and run garbage collection."""
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        torch.mps.empty_cache()
 
 def get_device():
     if torch.cuda.is_available():
@@ -111,11 +123,7 @@ async def add_voice(
         finally:
             # Explicitly free up VRAM and unload whisper
             model._asr_pipe = None
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                torch.mps.empty_cache()
+            cleanup_vram()
             print("Whisper model unloaded to free VRAM or RAM.")
 
     if not text_to_save:
@@ -192,43 +200,49 @@ async def generate_speech(req: GenerateRequest, background_tasks: BackgroundTask
     fix_random_seed(seed)
     print(f"Using seed: {seed}")
 
-    try:
-        if ref_audio_path and ref_text_content:
-            # Voice Cloning Mode
-            audio_out = model.generate(
-                text=req.text,
-                language=lang_identifier,
-                ref_audio=ref_audio_path,
-                ref_text=ref_text_content,
-                num_step=req.num_step,
-                guidance_scale=req.guidance_scale
-            )
-        else:
-            # Auto Voice Mode
-            audio_out = model.generate(
-                text=req.text,
-                language=lang_identifier,
-                num_step=req.num_step,
-                guidance_scale=req.guidance_scale
-            )
-        
-        out_tensor = audio_out[0]
-        
-        # Save temporally so we can respond
-        out_filename = f"{uuid.uuid4()}.wav"
-        out_filepath = os.path.join(OUTPUTS_DIR, out_filename)
-        
-        # OmniVoice model sampling rate is generally 24000
-        sr = 24000
-        if hasattr(model, "sampling_rate") and model.sampling_rate is not None:
-             sr = model.sampling_rate
-             
-        torchaudio.save(out_filepath, out_tensor, sr)
-        
-        background_tasks.add_task(remove_file, out_filepath)
-        return FileResponse(out_filepath, media_type="audio/wav")
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+    async with generation_lock:
+        try:
+            with torch.inference_mode():
+                if ref_audio_path and ref_text_content:
+                    # Voice Cloning Mode
+                    audio_out = model.generate(
+                        text=req.text,
+                        language=lang_identifier,
+                        ref_audio=ref_audio_path,
+                        ref_text=ref_text_content,
+                        num_step=req.num_step,
+                        guidance_scale=req.guidance_scale
+                    )
+                else:
+                    # Auto Voice Mode
+                    audio_out = model.generate(
+                        text=req.text,
+                        language=lang_identifier,
+                        num_step=req.num_step,
+                        guidance_scale=req.guidance_scale
+                    )
+                
+                # Move to CPU immediately to free VRAM
+                out_tensor = audio_out[0].cpu()
+                del audio_out
+            
+            # Save temporally so we can respond
+            out_filename = f"{uuid.uuid4()}.wav"
+            out_filepath = os.path.join(OUTPUTS_DIR, out_filename)
+            
+            # OmniVoice model sampling rate is generally 24000
+            sr = 24000
+            if hasattr(model, "sampling_rate") and model.sampling_rate is not None:
+                 sr = model.sampling_rate
+                 
+            torchaudio.save(out_filepath, out_tensor, sr)
+            
+            background_tasks.add_task(remove_file, out_filepath)
+            return FileResponse(out_filepath, media_type="audio/wav")
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=str(e))
+        finally:
+            cleanup_vram()
