@@ -78,6 +78,7 @@ Generates audio from text using OmniVoice. You can select an explicit language a
 - `num_step` (integer) **[Optional]**: Number of inference steps (default: `32`). Higher values generally improve quality but take longer.
 - `guidance_scale` (float) **[Optional]**: Classifier-free guidance scale (default: `2.0`). Controls how strongly the model follows the prompt.
 - `seed` (integer) **[Optional]**: Random seed for reproducible generation. If not provided, a random seed is used (or `42` for voice cloning).
+- `speed` (float) **[Optional]**: Speech rate factor (default: `1.0`). Values `>1.0` produce faster speech, `<1.0` produce slower speech. Range: `0.5` to `2.0`.
 
 **Example using cURL:**
 ```bash

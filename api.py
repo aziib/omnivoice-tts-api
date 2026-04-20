@@ -8,8 +8,8 @@ import asyncio
 
 import torch
 import torchaudio
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -152,10 +152,11 @@ class GenerateRequest(BaseModel):
     num_step: Optional[int] = 32
     guidance_scale: Optional[float] = 2.0
     seed: Optional[int] = None
+    speed: Optional[float] = 1.0  # Speech rate: >1.0 faster, <1.0 slower
 
 
 @app.post("/api/generate")
-async def generate_speech(req: GenerateRequest, background_tasks: BackgroundTasks):
+async def generate_speech(req: GenerateRequest):
     """
     Generates TTS using OmniVoice.
     """
@@ -218,7 +219,8 @@ async def generate_speech(req: GenerateRequest, background_tasks: BackgroundTask
                     ref_audio=ref_audio_path,
                     ref_text=ref_text_content,
                     num_step=req.num_step,
-                    guidance_scale=req.guidance_scale
+                    guidance_scale=req.guidance_scale,
+                    speed=req.speed
                 )
             else:
                 # Auto Voice Mode
@@ -226,17 +228,18 @@ async def generate_speech(req: GenerateRequest, background_tasks: BackgroundTask
                     text=req.text,
                     language=lang_identifier,
                     num_step=req.num_step,
-                    guidance_scale=req.guidance_scale
+                    guidance_scale=req.guidance_scale,
+                    speed=req.speed
                 )
             
-            # Move output to CPU immediately and aggressively free GPU tensors
-            out_tensor = audio_out[0].detach().cpu().clone()
-            
-            # Explicitly delete every tensor in the output list
-            for i in range(len(audio_out)):
-                if isinstance(audio_out[i], torch.Tensor):
-                    audio_out[i] = None
+            # v0.1.4+ returns list[np.ndarray] instead of list[torch.Tensor]
+            import numpy as np
+            audio_np = audio_out[0]  # 1-D numpy array (T,)
             del audio_out
+            
+            # Convert to tensor for torchaudio.save: shape (1, T)
+            out_tensor = torch.from_numpy(audio_np).unsqueeze(0).float()
+            del audio_np
             
             # Save to file
             out_filename = f"{uuid.uuid4()}.wav"
@@ -249,8 +252,15 @@ async def generate_speech(req: GenerateRequest, background_tasks: BackgroundTask
             torchaudio.save(out_filepath, out_tensor, sr)
             del out_tensor
             
-            background_tasks.add_task(remove_file, out_filepath)
-            return FileResponse(out_filepath, media_type="audio/wav")
+            # Read file into memory so we can delete immediately
+            # (FileResponse + background_task can race, causing truncated downloads)
+            with open(out_filepath, "rb") as audio_file:
+                audio_bytes = audio_file.read()
+            remove_file(out_filepath)
+            
+            return Response(content=audio_bytes, media_type="audio/wav", headers={
+                "Content-Disposition": "inline; filename=\"generated.wav\""
+            })
             
         except Exception as e:
             import traceback

@@ -20,6 +20,7 @@ function App() {
   const [numSteps, setNumSteps] = useState<number>(32);
   const [guidanceScale, setGuidanceScale] = useState<number>(2.0);
   const [seed, setSeed] = useState<string>(''); // string to allow empty input
+  const [speed, setSpeed] = useState<number>(1.0);
   
   // State for adding voice
   const [newVoiceName, setNewVoiceName] = useState('');
@@ -53,7 +54,8 @@ function App() {
         language: selectedLang === 'Auto' ? null : selectedLang,
         num_step: numSteps,
         guidance_scale: guidanceScale,
-        seed: seed.trim() !== '' ? parseInt(seed) : null
+        seed: seed.trim() !== '' ? parseInt(seed) : null,
+        speed: speed,
       };
       
       const res = await fetch(`${API_BASE_URL}/generate`, {
@@ -182,7 +184,7 @@ function App() {
            </button>
 
            {showAdvanced && (
-             <div className="advanced-panel animate-fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+             <div className="advanced-panel animate-fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>Inference Steps</label>
                   <input 
@@ -201,6 +203,21 @@ function App() {
                     onChange={e => setGuidanceScale(parseFloat(e.target.value) || 2.0)} 
                     min={1} max={10} 
                   />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Speech Rate: {speed.toFixed(1)}×</label>
+                  <input 
+                    type="range" 
+                    min={0.5} max={2.0} step={0.1}
+                    value={speed} 
+                    onChange={e => setSpeed(parseFloat(e.target.value))} 
+                    style={{ width: '100%' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75em', color: '#8b949e' }}>
+                    <span>0.5× Slow</span>
+                    <span>1.0× Normal</span>
+                    <span>2.0× Fast</span>
+                  </div>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>Seed (Auto if blank)</label>
