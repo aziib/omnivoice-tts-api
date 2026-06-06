@@ -14,6 +14,8 @@ Distributed under the **Apache 2.0 License**. See `LICENSE` for more information
 If you find this project useful, consider supporting me on Ko-fi:
 [![Support me on Ko-fi](https://img.shields.io/badge/Support%20me%20on%20Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/megaaziib)
 
+Or send Solana/USDC/USDT to my crypto wallet through solana network: 9rupbyrM19RaVbHmJ4fusozux6P9t72GoYB7Sdy4Nmks
+
 ---
 
 ## Installation & Setup
