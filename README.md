@@ -11,10 +11,33 @@ This project is based on the original [OmniVoice](https://github.com/k2-fsa/Omni
 Distributed under the **Apache 2.0 License**. See `LICENSE` for more information.
 
 ## Support the Developer
-If you find this project useful, consider supporting me on Ko-fi:
+If you find this project useful, consider supporting me:
+
 [![Support me on Ko-fi](https://img.shields.io/badge/Support%20me%20on%20Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/megaaziib)
 
-Or send Solana/USDC/USDT to my crypto wallet through solana network: 9rupbyrM19RaVbHmJ4fusozux6P9t72GoYB7Sdy4Nmks
+Or send Solana / USDC / USDT via Solana network:
+```
+9rupbyrM19RaVbHmJ4fusozux6P9t72GoYB7Sdy4Nmks
+```
+
+---
+
+## Requirements
+
+Before getting started, make sure you have the following installed on your system:
+
+| Requirement | Version | Purpose |
+|---|---|---|
+| **Python** | 3.10+ | Runtime for the API backend |
+| **uv** | Latest | Python package manager ([install](https://astral.sh/uv)) |
+| **Node.js** | 18+ | Runtime for the frontend |
+| **npm** | 9+ | Frontend package manager (comes with Node.js) |
+| **NVIDIA GPU** | 6GB+ VRAM recommended | CUDA acceleration for inference |
+| **CUDA Toolkit** | 11.8+ | GPU compute support |
+| **FFmpeg** | Latest | Audio format conversion (used by pydub) |
+
+> **Note:** The API can run on CPU, but generation will be significantly slower. A GPU with at least 6GB VRAM is strongly recommended for real-time usage.
+
 
 ---
 
